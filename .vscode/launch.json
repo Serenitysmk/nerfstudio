@@ -92,6 +92,37 @@
       "program": "scripts/train.py",
       "console": "integratedTerminal",
       "args": ["semantic_nerf"]
+    },
+    {
+      "name": "Python: train nerfacto",
+      "type": "python",
+      "request": "launch",
+      "program": "scripts/train.py",
+      "console": "integratedTerminal",
+      "args": [
+        "nerfacto",
+        "--data",
+        "/media/mshe/DATA1/mshe/MyFile/GEOMAR/projects/omv_src/nerf-project/dataset/sea-thru/D3_nerfstudio/processed",
+        "--experiment-name",
+        "sea-thru-d3-debug"
+      ]
+    },
+    {
+      "name": "Python: render nerfacto",
+      "type": "python",
+      "request": "launch",
+      "program": "scripts/render.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--load-config",
+        "outputs/sea-thru-d3-test/nerfacto/2023-02-24_101456/config.yml",
+        "--traj",
+        "filename",
+        "--camera-path-filename",
+        "/media/mshe/DATA1/mshe/MyFile/GEOMAR/projects/omv_src/nerf-project/dataset/sea-thru/D3_nerfstudio/processed/camera_paths/2023-02-24_101456.json",
+        "--output-path",
+        "renders/processed/2023-02-24_101456-rgb-debug.mp4"
+      ]
     }
   ]
 }
