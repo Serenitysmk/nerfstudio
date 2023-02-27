@@ -108,20 +108,38 @@
       ]
     },
     {
-      "name": "Python: render nerfacto",
+      "name": "Python train nerfacto unw",
+      "type": "python",
+      "request": "launch",
+      "program": "scripts/train.py",
+      "args": [
+        "nerfacto-unw",
+        "--data",
+        "/media/mshe/DATA1/mshe/MyFile/GEOMAR/projects/omv_src/nerf-project/dataset/sea-thru/D3_nerfstudio/processed",
+        "--experiment-name",
+        "sea-thru-d3-debug",
+        "--viewer.websocket-port",
+        "9000"
+      ]
+
+    },
+    {
+      "name": "Python: render nerfacto unw",
       "type": "python",
       "request": "launch",
       "program": "scripts/render.py",
       "console": "integratedTerminal",
       "args": [
         "--load-config",
-        "outputs/sea-thru-d3-test/nerfacto/2023-02-24_101456/config.yml",
+        "outputs/sea-thru-d3/nerfacto-unw/2023-02-26_150115/config.yml",
         "--traj",
         "filename",
         "--camera-path-filename",
         "/media/mshe/DATA1/mshe/MyFile/GEOMAR/projects/omv_src/nerf-project/dataset/sea-thru/D3_nerfstudio/processed/camera_paths/2023-02-24_101456.json",
         "--output-path",
-        "renders/processed/2023-02-24_101456-rgb-debug.mp4"
+        "outputs/sea-thru-d3-test-unw/nerfacto-unw/2023-02-26_150115/render_rgb_debug.mp4",
+        "--rendered-output-names",
+        "depht"
       ]
     }
   ]

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-NeRF implementation that combines many recent advancements.
+NeRF implementation that combines many recent advancements (underwater version).
 """
 
 from __future__ import annotations
@@ -63,10 +63,10 @@ from nerfstudio.utils import colormaps
 
 
 @dataclass
-class NerfactoModelConfig(ModelConfig):
-    """Nerfacto Model Config"""
+class NerfactoUnwModelConfig(ModelConfig):
+    """Nerfacto underwater Model Config"""
 
-    _target: Type = field(default_factory=lambda: NerfactoModel)
+    _target: Type = field(default_factory=lambda: NerfactoUnwModel)
     near_plane: float = 0.05
     """How far along the ray to start sampling."""
     far_plane: float = 1000.0
@@ -122,14 +122,14 @@ class NerfactoModelConfig(ModelConfig):
     """Whether to predict normals or not."""
 
 
-class NerfactoModel(Model):
-    """Nerfacto model
+class NerfactoUnwModel(Model):
+    """Nerfacto underwater model
 
     Args:
         config: Nerfacto configuration to instantiate model
     """
 
-    config: NerfactoModelConfig
+    config: NerfactoUnwModelConfig
 
     def populate_modules(self):
         """Set the fields and modules."""
@@ -288,6 +288,32 @@ class NerfactoModel(Model):
 
         for i in range(self.config.num_proposal_iterations):
             outputs[f"prop_depth_{i}"] = self.renderer_depth(weights=weights_list[i], ray_samples=ray_samples_list[i])
+
+        # if True:
+        #     exclude_samples_mask = ray_samples.frustums.ends >= depth.unsqueeze(-2)
+        #     density_fields_before_depth = field_outputs[FieldHeadNames.DENSITY][~exclude_samples_mask]
+        #     density_fields_after_depth = field_outputs[FieldHeadNames.DENSITY][exclude_samples_mask]
+
+        #     mean_before = torch.mean(density_fields_before_depth)
+        #     std_before = torch.std(density_fields_before_depth)
+        #     min_before = torch.min(density_fields_before_depth)
+        #     max_before = torch.max(density_fields_before_depth)
+
+        #     mean_after = torch.mean(density_fields_after_depth)
+        #     std_after = torch.std(density_fields_after_depth)
+        #     min_after = torch.min(density_fields_after_depth)
+        #     max_after = torch.max(density_fields_after_depth)
+
+        #     print(f"density fields before depth: {mean_before}, {std_before}, {min_before}, {max_before}")
+        #     print(f"density fields after depth: {mean_after}, {std_after}, {min_after}, {max_after}")
+
+        # if not self.training:
+        #     # Exclude samples which is infront of the object (given depth values)
+        #     # Recalculate weights
+        #     exclude_samples_mask = (ray_samples.frustums.ends >= depth.unsqueeze(-2)).to(dtype=weights.dtype)
+
+        #     density_fields = field_outputs[FieldHeadNames.DENSITY] * exclude_samples_mask
+        #     weights = ray_samples.get_weights(density_fields)
 
         return outputs
 
