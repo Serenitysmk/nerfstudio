@@ -48,6 +48,7 @@ from nerfstudio.model_components.losses import (
 )
 from nerfstudio.model_components.ray_samplers import (
     ProposalNetworkSampler,
+    UniformLinDispPiecewiseSampler,
     UniformSampler,
 )
 from nerfstudio.model_components.renderers import (
@@ -120,6 +121,8 @@ class NerfactoUnwModelConfig(ModelConfig):
     """Whether use single jitter or not for the proposal networks."""
     predict_normals: bool = False
     """Whether to predict normals or not."""
+    rgb_uniform_sampling_loss_mult: float = 1.0
+    """RGB loss for uniformly sampled points"""
 
 
 class NerfactoUnwModel(Model):
@@ -191,6 +194,8 @@ class NerfactoUnwModel(Model):
             initial_sampler=initial_sampler,
         )
 
+        self.uniform_sampler = UniformLinDispPiecewiseSampler(256)
+
         # Collider
         self.collider = NearFarCollider(near_plane=self.config.near_plane, far_plane=self.config.far_plane)
 
@@ -213,81 +218,99 @@ class NerfactoUnwModel(Model):
 
     def get_param_groups(self) -> Dict[str, List[Parameter]]:
         param_groups = {}
-        param_groups["proposal_networks"] = list(self.proposal_networks.parameters())
+        # param_groups["proposal_networks"] = list(self.proposal_networks.parameters())
         param_groups["fields"] = list(self.field.parameters())
         return param_groups
 
-    def get_training_callbacks(
-        self, training_callback_attributes: TrainingCallbackAttributes
-    ) -> List[TrainingCallback]:
-        callbacks = []
-        if self.config.use_proposal_weight_anneal:
-            # anneal the weights of the proposal network before doing PDF sampling
-            N = self.config.proposal_weights_anneal_max_num_iters
+    # def get_training_callbacks(
+    #     self, training_callback_attributes: TrainingCallbackAttributes
+    # ) -> List[TrainingCallback]:
+    #     callbacks = []
+    #     if self.config.use_proposal_weight_anneal:
+    #         # anneal the weights of the proposal network before doing PDF sampling
+    #         N = self.config.proposal_weights_anneal_max_num_iters
 
-            def set_anneal(step):
-                # https://arxiv.org/pdf/2111.12077.pdf eq. 18
-                train_frac = np.clip(step / N, 0, 1)
-                bias = lambda x, b: (b * x) / ((b - 1) * x + 1)
-                anneal = bias(train_frac, self.config.proposal_weights_anneal_slope)
-                self.proposal_sampler.set_anneal(anneal)
+    #         def set_anneal(step):
+    #             # https://arxiv.org/pdf/2111.12077.pdf eq. 18
+    #             train_frac = np.clip(step / N, 0, 1)
+    #             bias = lambda x, b: (b * x) / ((b - 1) * x + 1)
+    #             anneal = bias(train_frac, self.config.proposal_weights_anneal_slope)
+    #             self.proposal_sampler.set_anneal(anneal)
 
-            callbacks.append(
-                TrainingCallback(
-                    where_to_run=[TrainingCallbackLocation.BEFORE_TRAIN_ITERATION],
-                    update_every_num_iters=1,
-                    func=set_anneal,
-                )
-            )
-            callbacks.append(
-                TrainingCallback(
-                    where_to_run=[TrainingCallbackLocation.AFTER_TRAIN_ITERATION],
-                    update_every_num_iters=1,
-                    func=self.proposal_sampler.step_cb,
-                )
-            )
-        return callbacks
+    #         callbacks.append(
+    #             TrainingCallback(
+    #                 where_to_run=[TrainingCallbackLocation.BEFORE_TRAIN_ITERATION],
+    #                 update_every_num_iters=1,
+    #                 func=set_anneal,
+    #             )
+    #         )
+    #         callbacks.append(
+    #             TrainingCallback(
+    #                 where_to_run=[TrainingCallbackLocation.AFTER_TRAIN_ITERATION],
+    #                 update_every_num_iters=1,
+    #                 func=self.proposal_sampler.step_cb,
+    #             )
+    #         )
+    #     return callbacks
 
     def get_outputs(self, ray_bundle: RayBundle):
-        ray_samples, weights_list, ray_samples_list = self.proposal_sampler(ray_bundle, density_fns=self.density_fns)
-        field_outputs = self.field(ray_samples, compute_normals=self.config.predict_normals)
-        weights = ray_samples.get_weights(field_outputs[FieldHeadNames.DENSITY])
-        weights_list.append(weights)
-        ray_samples_list.append(ray_samples)
+        # ray_samples, weights_list, ray_samples_list = self.proposal_sampler(ray_bundle, density_fns=self.density_fns)
+        # field_outputs = self.field(ray_samples, compute_normals=self.config.predict_normals)
+        # weights = ray_samples.get_weights(field_outputs[FieldHeadNames.DENSITY])
+        # weights_list.append(weights)
+        # ray_samples_list.append(ray_samples)
 
-        rgb = self.renderer_rgb(rgb=field_outputs[FieldHeadNames.RGB], weights=weights)
-        depth = self.renderer_depth(weights=weights, ray_samples=ray_samples)
-        accumulation = self.renderer_accumulation(weights=weights)
+        # rgb = self.renderer_rgb(rgb=field_outputs[FieldHeadNames.RGB], weights=weights)
+        # depth = self.renderer_depth(weights=weights, ray_samples=ray_samples)
+        # accumulation = self.renderer_accumulation(weights=weights)
 
-        outputs = {
-            "rgb": rgb,
-            "accumulation": accumulation,
-            "depth": depth,
-        }
+        # at the same time, we want to generate samples also uniformly
+        ray_samples_uniform = self.uniform_sampler(ray_bundle)
+        field_outputs_uniform = self.field(ray_samples_uniform, compute_normals=self.config.predict_normals)
+        weights_uniform = ray_samples_uniform.get_weights(field_outputs_uniform[FieldHeadNames.DENSITY])
+        rgb_uniform = self.renderer_rgb(rgb=field_outputs_uniform[FieldHeadNames.RGB], weights=weights_uniform)
 
-        if self.config.predict_normals:
-            normals = self.renderer_normals(normals=field_outputs[FieldHeadNames.NORMALS], weights=weights)
-            pred_normals = self.renderer_normals(field_outputs[FieldHeadNames.PRED_NORMALS], weights=weights)
-            outputs["normals"] = self.normals_shader(normals)
-            outputs["pred_normals"] = self.normals_shader(pred_normals)
-        # These use a lot of GPU memory, so we avoid storing them for eval.
-        if self.training:
-            outputs["weights_list"] = weights_list
-            outputs["ray_samples_list"] = ray_samples_list
+        depth = self.renderer_depth(weights=weights_uniform, ray_samples=ray_samples_uniform)
+        accumulation = self.renderer_accumulation(weights=weights_uniform)
 
-        if self.training and self.config.predict_normals:
-            outputs["rendered_orientation_loss"] = orientation_loss(
-                weights.detach(), field_outputs[FieldHeadNames.NORMALS], ray_bundle.directions
+        outputs = {"rgb": rgb_uniform, "accumulation": accumulation, "depth": depth}
+
+        # if self.config.predict_normals:
+        #     normals = self.renderer_normals(normals=field_outputs[FieldHeadNames.NORMALS], weights=weights)
+        #     pred_normals = self.renderer_normals(field_outputs[FieldHeadNames.PRED_NORMALS], weights=weights)
+        #     outputs["normals"] = self.normals_shader(normals)
+        #     outputs["pred_normals"] = self.normals_shader(pred_normals)
+        # # These use a lot of GPU memory, so we avoid storing them for eval.
+        # if self.training:
+        #     outputs["weights_list"] = weights_list
+        #     outputs["ray_samples_list"] = ray_samples_list
+
+        # if self.training and self.config.predict_normals:
+        #     outputs["rendered_orientation_loss"] = orientation_loss(
+        #         weights.detach(), field_outputs[FieldHeadNames.NORMALS], ray_bundle.directions
+        #     )
+
+        #     outputs["rendered_pred_normal_loss"] = pred_normal_loss(
+        #         weights.detach(),
+        #         field_outputs[FieldHeadNames.NORMALS].detach(),
+        #         field_outputs[FieldHeadNames.PRED_NORMALS],
+        #     )
+
+        # for i in range(self.config.num_proposal_iterations):
+        #     outputs[f"prop_depth_{i}"] = self.renderer_depth(weights=weights_list[i], ray_samples=ray_samples_list[i])
+
+        with torch.no_grad():
+            # Exclude samples which is infront of the object (given depth values)
+            # Recalculate weights
+            exclude_samples_mask = (ray_samples_uniform.frustums.ends >= depth.unsqueeze(-2)).to(
+                dtype=weights_uniform.dtype
             )
 
-            outputs["rendered_pred_normal_loss"] = pred_normal_loss(
-                weights.detach(),
-                field_outputs[FieldHeadNames.NORMALS].detach(),
-                field_outputs[FieldHeadNames.PRED_NORMALS],
-            )
-
-        for i in range(self.config.num_proposal_iterations):
-            outputs[f"prop_depth_{i}"] = self.renderer_depth(weights=weights_list[i], ray_samples=ray_samples_list[i])
+            density_fields = field_outputs_uniform[FieldHeadNames.DENSITY] * exclude_samples_mask
+            weights_unw = ray_samples_uniform.get_weights(density_fields)
+            rgb_unw = self.renderer_rgb(rgb=field_outputs_uniform[FieldHeadNames.RGB], weights=weights_unw)
+            # outputs["rgb"] = rgb_unw
+            outputs["rgb"] = rgb_unw
 
         # if True:
         #     exclude_samples_mask = ray_samples.frustums.ends >= depth.unsqueeze(-2)
@@ -317,34 +340,36 @@ class NerfactoUnwModel(Model):
 
         return outputs
 
-    def get_metrics_dict(self, outputs, batch):
-        metrics_dict = {}
-        image = batch["image"].to(self.device)
-        metrics_dict["psnr"] = self.psnr(outputs["rgb"], image)
-        if self.training:
-            metrics_dict["distortion"] = distortion_loss(outputs["weights_list"], outputs["ray_samples_list"])
-        return metrics_dict
+    # def get_metrics_dict(self, outputs, batch):
+    #     metrics_dict = {}
+    #     image = batch["image"].to(self.device)
+    #     metrics_dict["psnr"] = self.psnr(outputs["rgb"], image)
+    #     if self.training:
+    #         metrics_dict["distortion"] = distortion_loss(outputs["weights_list"], outputs["ray_samples_list"])
+    #     return metrics_dict
 
     def get_loss_dict(self, outputs, batch, metrics_dict=None):
         loss_dict = {}
         image = batch["image"].to(self.device)
-        loss_dict["rgb_loss"] = self.rgb_loss(image, outputs["rgb"])
-        if self.training:
-            loss_dict["interlevel_loss"] = self.config.interlevel_loss_mult * interlevel_loss(
-                outputs["weights_list"], outputs["ray_samples_list"]
-            )
-            assert metrics_dict is not None and "distortion" in metrics_dict
-            loss_dict["distortion_loss"] = self.config.distortion_loss_mult * metrics_dict["distortion"]
-            if self.config.predict_normals:
-                # orientation loss for computed normals
-                loss_dict["orientation_loss"] = self.config.orientation_loss_mult * torch.mean(
-                    outputs["rendered_orientation_loss"]
-                )
+        # rgb_loss_prop = self.rgb_loss(image, outputs["rgb"])
+        rgb_loss_uniform = self.rgb_loss(image, outputs["rgb"])
+        loss_dict["rgb_loss"] = rgb_loss_uniform
+        # if self.training:
+        # loss_dict["interlevel_loss"] = self.config.interlevel_loss_mult * interlevel_loss(
+        #     outputs["weights_list"], outputs["ray_samples_list"]
+        # )
+        # assert metrics_dict is not None and "distortion" in metrics_dict
+        # loss_dict["distortion_loss"] = self.config.distortion_loss_mult * metrics_dict["distortion"]
+        # if self.config.predict_normals:
+        #     # orientation loss for computed normals
+        #     loss_dict["orientation_loss"] = self.config.orientation_loss_mult * torch.mean(
+        #         outputs["rendered_orientation_loss"]
+        #     )
 
-                # ground truth supervision for normals
-                loss_dict["pred_normal_loss"] = self.config.pred_normal_loss_mult * torch.mean(
-                    outputs["rendered_pred_normal_loss"]
-                )
+        #     # ground truth supervision for normals
+        #     loss_dict["pred_normal_loss"] = self.config.pred_normal_loss_mult * torch.mean(
+        #         outputs["rendered_pred_normal_loss"]
+        #     )
         return loss_dict
 
     def get_image_metrics_and_images(
@@ -357,8 +382,8 @@ class NerfactoUnwModel(Model):
             outputs["depth"],
             accumulation=outputs["accumulation"],
         )
-
-        combined_rgb = torch.cat([image, rgb], dim=1)
+        rgb_unw = outputs["rgb_unw"]
+        combined_rgb = torch.cat([image, rgb, rgb_unw], dim=1)
         combined_acc = torch.cat([acc], dim=1)
         combined_depth = torch.cat([depth], dim=1)
 
@@ -376,12 +401,12 @@ class NerfactoUnwModel(Model):
 
         images_dict = {"img": combined_rgb, "accumulation": combined_acc, "depth": combined_depth}
 
-        for i in range(self.config.num_proposal_iterations):
-            key = f"prop_depth_{i}"
-            prop_depth_i = colormaps.apply_depth_colormap(
-                outputs[key],
-                accumulation=outputs["accumulation"],
-            )
-            images_dict[key] = prop_depth_i
+        # for i in range(self.config.num_proposal_iterations):
+        #     key = f"prop_depth_{i}"
+        #     prop_depth_i = colormaps.apply_depth_colormap(
+        #         outputs[key],
+        #         accumulation=outputs["accumulation"],
+        #     )
+        #     images_dict[key] = prop_depth_i
 
         return metrics_dict, images_dict
