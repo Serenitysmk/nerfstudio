@@ -574,3 +574,33 @@ class VanillaDataManager(DataManager, Generic[TDataset]):
             A list of dictionaries containing the data manager's param groups.
         """
         return {}
+
+
+class VanillaDataManagerWithCameraPoses(VanillaDataManager):
+    def __init__(
+        self,
+        config: VanillaDataManagerConfig,
+        device: Union[torch.device, str] = "cpu",
+        test_mode: Literal["test", "val", "inference"] = "val",
+        world_size: int = 1,
+        local_rank: int = 0,
+        **kwargs,
+    ):
+        super().__init__(config, device, test_mode, world_size, local_rank, **kwargs)
+
+    def next_train(self, step: int) -> Tuple[RayBundle, Dict]:
+        ray_bundle, batch = super().next_train(step)
+        # Additionally export the camera to world transformations.
+        camera_to_worlds = self.train_dataset.cameras.camera_to_worlds.to(self.device)[
+            ray_bundle.camera_indices
+        ].squeeze(1)
+        ray_bundle.metadata["camera_to_worlds"] = camera_to_worlds.reshape(ray_bundle.shape[0], -1)
+        return ray_bundle, batch
+
+    def next_eval(self, step: int) -> Tuple[RayBundle, Dict]:
+        ray_bundle, batch = super().next_eval(step)
+        camera_to_worlds = self.eval_dataset.cameras.camera_to_worlds.to(self.device)[
+            ray_bundle.camera_indices
+        ].squeeze(1)
+        ray_bundle.metadata["camera_to_worlds"] = camera_to_worlds.reshape(ray_bundle.shape[0], -1)
+        return ray_bundle, batch

@@ -15,6 +15,7 @@
 """
 Collection of render heads
 """
+
 from enum import Enum
 from typing import Callable, Optional, Union
 
@@ -41,6 +42,7 @@ class FieldHeadNames(Enum):
     SDF = "sdf"
     ALPHA = "alpha"
     GRADIENT = "gradient"
+    RGB_AFFINE = "rgb_affine"
 
 
 class FieldHead(FieldComponent):
@@ -202,3 +204,18 @@ class PredNormalsFieldHead(FieldHead):
         out_tensor = super().forward(in_tensor)
         out_tensor = torch.nn.functional.normalize(out_tensor, dim=-1)
         return out_tensor
+
+
+class RGBAffineFieldHead(FieldHead):
+    """Predicted affine mapping to the RGB color.
+
+    It predicts a affine mapping alpha and beta and apply it to the output RGB color.
+    result = alpha * RGB + beta
+
+    Args:
+        in_dim: input dimension. If not defined in constructor, it must be set later.
+        activation: output head activation
+    """
+
+    def __init__(self, in_dim: Optional[int] = None, activation: Optional[nn.Module] = nn.ReLU()) -> None:
+        super().__init__(in_dim=in_dim, out_dim=3, field_head_name=FieldHeadNames.RGB_AFFINE, activation=activation)

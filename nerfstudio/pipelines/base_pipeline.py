@@ -15,6 +15,7 @@
 """
 Abstracts for the Pipeline class.
 """
+
 from __future__ import annotations
 
 import typing
@@ -441,3 +442,50 @@ class VanillaPipeline(Pipeline):
         model_params = self.model.get_param_groups()
         # TODO(ethan): assert that key names don't overlap
         return {**datamanager_params, **model_params}
+
+
+class VanillaPipelineWithCameraPoses(VanillaPipeline):
+    def __init__(
+        self,
+        config: VanillaPipelineConfig,
+        device: str,
+        test_mode: Literal["test", "val", "inference"] = "val",
+        world_size: int = 1,
+        local_rank: int = 0,
+        grad_scaler: Optional[GradScaler] = None,
+    ):
+        super().__init__(config, device, test_mode, world_size, local_rank, grad_scaler)
+
+    @profiler.time_function
+    def get_train_loss_dict(self, step: int):
+        """This function gets your training loss dict. This will be responsible for
+        getting the next batch of data from the DataManager and interfacing with the
+        Model class, feeding the data to the model's forward function.
+
+        Args:
+            step: current iteration step to update sampler if using DDP (distributed)
+        """
+        ray_bundle, batch, camera_to_worlds = self.datamanager.next_train(step)  # type: ignore
+        model_outputs = self._model(
+            ray_bundle, camera_to_worlds
+        )  # train distributed data parallel model if world_size > 1
+        metrics_dict = self.model.get_metrics_dict(model_outputs, batch)
+        loss_dict = self.model.get_loss_dict(model_outputs, batch, metrics_dict)
+
+        return model_outputs, loss_dict, metrics_dict
+
+    @profiler.time_function
+    def get_eval_loss_dict(self, step: int) -> Tuple[Any, Dict[str, Any], Dict[str, Any]]:
+        """This function gets your evaluation loss dict. It needs to get the data
+        from the DataManager and feed it to the model's forward function
+
+        Args:
+            step: current iteration step
+        """
+        self.eval()
+        ray_bundle, batch, camera_to_worlds = self.datamanager.next_eval(step)  # type: ignore
+        model_outputs = self.model(ray_bundle, camera_to_worlds)
+        metrics_dict = self.model.get_metrics_dict(model_outputs, batch)
+        loss_dict = self.model.get_loss_dict(model_outputs, batch, metrics_dict)
+        self.train()
+        return model_outputs, loss_dict, metrics_dict

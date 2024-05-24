@@ -148,6 +148,26 @@
         "--include_mono_prior=False",
         "--auto-orient=True"
       ]
+    },
+    {
+      "name": "Python: train nerfacto-lut3d",
+      "type": "python",
+      "request": "launch",
+      "program": "nerfstudio/scripts/train.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {"CUDA_VISIBLE_DEVICES": "0"},
+      "args": [
+        "nerfacto-lut3d",
+        "--output-dir",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/CMU-DarkGS-data/lab1/nerfstudio/train/",
+        "--data",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/CMU-DarkGS-data/lab1/nerfstudio/data/",
+        "--pipeline.model.predict-normals",
+        "True",
+        "--pipeline.model.camera-optimizer.mode",
+        "off"
+      ]
     }
   ]
 }
