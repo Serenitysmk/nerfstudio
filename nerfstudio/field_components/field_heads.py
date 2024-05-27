@@ -217,5 +217,5 @@ class RGBAffineFieldHead(FieldHead):
         activation: output head activation
     """
 
-    def __init__(self, in_dim: Optional[int] = None, activation: Optional[nn.Module] = nn.ReLU()) -> None:
+    def __init__(self, in_dim: Optional[int] = None, activation: Optional[nn.Module] = nn.Sigmoid()) -> None:
         super().__init__(in_dim=in_dim, out_dim=3, field_head_name=FieldHeadNames.RGB_AFFINE, activation=activation)
