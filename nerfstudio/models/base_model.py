@@ -181,6 +181,7 @@ class Model(nn.Module):
         Args:
             camera_ray_bundle: ray bundle to calculate outputs over
         """
+        print("I am triggered, I don't know why")
         input_device = camera_ray_bundle.directions.device
         num_rays_per_chunk = self.config.eval_num_rays_per_chunk
         image_height, image_width = camera_ray_bundle.origins.shape[:2]

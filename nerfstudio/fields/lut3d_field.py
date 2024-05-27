@@ -55,6 +55,8 @@ class LUT3DField(nn.Module):
         # Generate points from depth measurements
         point = ray_bundle.origins + ray_bundle.directions * depth
         w2cs = pose_utils.inverse(ray_bundle.metadata["camera_to_worlds"].view(ray_bundle.shape[0], 3, 4))
+        if not self.training:
+            print(f"w2cs: {w2cs.shape}")
         point_local = (torch.matmul(w2cs[..., :3, :3], point.unsqueeze(-1)) + w2cs[..., :3, 3:]).squeeze(-1)
 
         # Compute output from the query points.
@@ -66,4 +68,6 @@ class LUT3DField(nn.Module):
         for field_head in self.field_heads:
             mlp_out = self.mlp_head(base_mlp_out)  # type: ignore
             outputs[field_head.field_head_name] = field_head(mlp_out)
+        if not self.training:
+            print(f"Done: {outputs[field_head.field_head_name].shape}")
         return outputs

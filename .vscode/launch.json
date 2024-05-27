@@ -159,6 +159,8 @@
       "env": {"CUDA_VISIBLE_DEVICES": "0"},
       "args": [
         "nerfacto-lut3d",
+        "--experiment-name",
+        "use-nerfacto-lut3d-on-raw-images",
         "--output-dir",
         "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/CMU-DarkGS-data/lab1/nerfstudio/train/",
         "--data",
@@ -166,7 +168,9 @@
         "--pipeline.model.predict-normals",
         "True",
         "--pipeline.model.camera-optimizer.mode",
-        "off"
+        "off",
+        "--pipeline.model.use-appearance-embedding",
+        "False"
       ]
     }
   ]

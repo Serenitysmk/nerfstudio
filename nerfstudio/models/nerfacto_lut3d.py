@@ -18,15 +18,20 @@ NeRF implementation that combines many recent advancements.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List, Literal, Tuple, Type
+from typing import Dict, List, Literal, Optional, Tuple, Type
 
 import numpy as np
 import torch
+from jaxtyping import Float
+from torch import Tensor
 from torch.nn import Parameter
 
 from nerfstudio.cameras.camera_optimizers import CameraOptimizer, CameraOptimizerConfig
+from nerfstudio.cameras.cameras import Cameras
 from nerfstudio.cameras.rays import RayBundle, RaySamples
+from nerfstudio.data.scene_box import OrientedBox
 from nerfstudio.engine.callbacks import TrainingCallback, TrainingCallbackAttributes, TrainingCallbackLocation
 from nerfstudio.field_components.encodings import NeRFEncoding
 from nerfstudio.field_components.field_heads import FieldHeadNames
@@ -331,12 +336,14 @@ class NerfactoLUT3DModel(Model):
         accumulation = self.renderer_accumulation(weights=weights)
 
         # Apply the look up table affine transform
-        if self.training:
+
+        if True:
             rgb_affine = self.lut3d.forward(ray_bundle, depth)[FieldHeadNames.RGB_AFFINE]
-            rgb = rgb_affine * rgb
+            rgb_train = rgb_affine * rgb
 
         outputs = {
-            "rgb": rgb,
+            "rgb": rgb_train if self.training else rgb,
+            "rgb_eval": rgb,
             "accumulation": accumulation,
             "depth": depth,
             "expected_depth": expected_depth,
@@ -449,3 +456,51 @@ class NerfactoLUT3DModel(Model):
             images_dict[key] = prop_depth_i
 
         return metrics_dict, images_dict
+
+    # Override the following functions to additionally compute `camera_to_worlds` for the ray_bundle in evaluation mode.
+    @torch.no_grad()
+    def get_outputs_for_camera(self, camera: Cameras, obb_box: Optional[OrientedBox] = None) -> Dict[str, torch.Tensor]:
+        """Takes in a camera, generates the raybundle, and computes the output of the model.
+        Assumes a ray-based model.
+
+        Args:
+            camera: generates raybundle
+        """
+        return self.get_outputs_for_camera_ray_bundle(
+            camera.generate_rays(camera_indices=0, keep_shape=True, obb_box=obb_box), camera.camera_to_worlds
+        )
+
+    @torch.no_grad()
+    def get_outputs_for_camera_ray_bundle(
+        self, camera_ray_bundle: RayBundle, camera_to_worlds: Float[Tensor, "*bs 3 4"]
+    ) -> Dict[str, torch.Tensor]:
+        """Takes in camera parameters and computes the output of the model.
+
+        Args:
+            camera_ray_bundle: ray bundle to calculate outputs over
+        """
+        input_device = camera_ray_bundle.directions.device
+        num_rays_per_chunk = self.config.eval_num_rays_per_chunk
+        image_height, image_width = camera_ray_bundle.origins.shape[:2]
+        num_rays = len(camera_ray_bundle)
+        outputs_lists = defaultdict(list)
+        for i in range(0, num_rays, num_rays_per_chunk):
+            start_idx = i
+            end_idx = i + num_rays_per_chunk
+            ray_bundle = camera_ray_bundle.get_row_major_sliced_ray_bundle(start_idx, end_idx)
+            # move the chunk inputs to the model device
+            ray_bundle = ray_bundle.to(self.device)
+            ray_bundle.metadata["camera_to_worlds"] = (
+                camera_to_worlds.to(self.device).repeat(ray_bundle.shape[0], 1, 1).reshape(ray_bundle.shape[0], -1)
+            )
+            outputs = self.forward(ray_bundle=ray_bundle)
+            for output_name, output in outputs.items():  # type: ignore
+                if not isinstance(output, torch.Tensor):
+                    # TODO: handle lists of tensors as well
+                    continue
+                # move the chunk outputs from the model device back to the device of the inputs.
+                outputs_lists[output_name].append(output.to(input_device))
+        outputs = {}
+        for output_name, outputs_list in outputs_lists.items():
+            outputs[output_name] = torch.cat(outputs_list).view(image_height, image_width, -1)  # type: ignore
+        return outputs
