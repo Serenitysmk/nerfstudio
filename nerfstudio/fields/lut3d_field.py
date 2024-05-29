@@ -9,7 +9,7 @@ from jaxtyping import Float
 from torch import Tensor, nn
 
 import nerfstudio.utils.poses as pose_utils
-from nerfstudio.cameras.rays import RayBundle
+from nerfstudio.cameras.rays import RayBundle, RaySamples
 from nerfstudio.data.scene_box import SceneBox
 from nerfstudio.field_components.encodings import Encoding, Identity
 from nerfstudio.field_components.field_heads import FieldHead, FieldHeadNames, RGBAffineFieldHead
@@ -74,6 +74,8 @@ class LUT3DField(nn.Module):
 
 
 class LUT3DFieldHashEncoding(nn.Module):
+    aabb: Tensor
+
     def __init__(
         self,
         aabb: Tensor,
@@ -125,11 +127,38 @@ class LUT3DFieldHashEncoding(nn.Module):
             implementation=implementation,
         )
 
-    def forward(self, ray_bundle: RayBundle, depth: Float[Tensor, "*bs 1"]) -> Dict[FieldHeadNames, Tensor]:
+    # def forward(self, ray_bundle: RayBundle, depth: Float[Tensor, "*bs 1"]) -> Dict[FieldHeadNames, Tensor]:
+    #     outputs = {}
+    #     # Generate points from depth measurements
+    #     positions = ray_bundle.origins + ray_bundle.directions * depth
+    #     w2cs = pose_utils.inverse(ray_bundle.metadata["camera_to_worlds"].view(ray_bundle.shape[0], 3, 4))
+    #     positions = (torch.matmul(w2cs[..., :3, :3], positions.unsqueeze(-1)) + w2cs[..., :3, 3:]).squeeze(-1)
+
+    #     if self.spatial_distortion is not None:
+    #         positions = self.spatial_distortion(positions)
+    #         positions = (positions + 2.0) / 4.0
+    #     else:
+    #         positions = SceneBox.get_normalized_positions(positions, self.aabb)
+    #     # Make sure the tcnn gets inputs between 0 and 1.
+    #     selector = ((positions > 0.0) & (positions < 1.0)).all(dim=-1)
+    #     positions = positions * selector[..., None]
+
+    #     base_mlp_out = self.mlp_base(positions)
+    #     rgb = self.mlp_head(base_mlp_out).to(ray_bundle.directions)
+    #     outputs.update({FieldHeadNames.RGB_AFFINE: rgb})
+    #     return outputs
+
+    def forward(
+        self,
+        ray_samples: RaySamples,
+        densities: Float[Tensor, "*batch num_samples 1"],
+        camera_to_worlds: Float[Tensor, "*batch 3 4"],
+    ) -> Dict[FieldHeadNames, Tensor]:
         outputs = {}
-        # Generate points from depth measurements
-        positions = ray_bundle.origins + ray_bundle.directions * depth
-        w2cs = pose_utils.inverse(ray_bundle.metadata["camera_to_worlds"].view(ray_bundle.shape[0], 3, 4))
+        # Get all sample positions.
+        positions = ray_samples.frustums.get_positions()
+        w2cs = pose_utils.inverse(camera_to_worlds).unsqueeze(1)
+        # Convert all sample positions to the local camera coordinate space
         positions = (torch.matmul(w2cs[..., :3, :3], positions.unsqueeze(-1)) + w2cs[..., :3, 3:]).squeeze(-1)
 
         if self.spatial_distortion is not None:
@@ -137,11 +166,21 @@ class LUT3DFieldHashEncoding(nn.Module):
             positions = (positions + 2.0) / 4.0
         else:
             positions = SceneBox.get_normalized_positions(positions, self.aabb)
+
         # Make sure the tcnn gets inputs between 0 and 1.
         selector = ((positions > 0.0) & (positions < 1.0)).all(dim=-1)
         positions = positions * selector[..., None]
+        positions_flat = positions.view(-1, 3)
+        base_mlp_out = self.mlp_base(positions_flat)
+        rgb = self.mlp_head(base_mlp_out).view(*ray_samples.frustums.shape, -1).to(densities)
 
-        base_mlp_out = self.mlp_base(positions)
-        rgb = self.mlp_head(base_mlp_out).to(ray_bundle.directions)
+        # Map densities to a normalized weight using a temperatured softmax operation.
+        # weight = nn.functional.normalize(densities, dim=1, p=1)
+        weight = torch.softmax(
+            densities,
+            dim=1,
+        )
+        rgb = torch.sum(weight * rgb, dim=-2)
+
         outputs.update({FieldHeadNames.RGB_AFFINE: rgb})
         return outputs

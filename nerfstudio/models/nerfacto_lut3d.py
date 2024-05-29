@@ -336,7 +336,11 @@ class NerfactoLUT3DModel(Model):
 
         # Apply the look up table affine transform
 
-        rgb_affine = self.lut3d.forward(ray_bundle, depth)[FieldHeadNames.RGB_AFFINE]
+        rgb_affine = self.lut3d.forward(
+            ray_samples,
+            field_outputs[FieldHeadNames.DENSITY],
+            ray_bundle.metadata["camera_to_worlds"].view(ray_bundle.shape[0], 3, 4),
+        )[FieldHeadNames.RGB_AFFINE]
         rgb_train = rgb_affine * rgb
 
         outputs = {
