@@ -33,11 +33,10 @@ from nerfstudio.cameras.cameras import Cameras
 from nerfstudio.cameras.rays import RayBundle, RaySamples
 from nerfstudio.data.scene_box import OrientedBox
 from nerfstudio.engine.callbacks import TrainingCallback, TrainingCallbackAttributes, TrainingCallbackLocation
-from nerfstudio.field_components.encodings import NeRFEncoding
 from nerfstudio.field_components.field_heads import FieldHeadNames
 from nerfstudio.field_components.spatial_distortions import SceneContraction
 from nerfstudio.fields.density_fields import HashMLPDensityField
-from nerfstudio.fields.lut3d_field import LUT3DField
+from nerfstudio.fields.lut3d_field import LUT3DFieldHashEncoding
 from nerfstudio.fields.nerfacto_field import NerfactoField
 from nerfstudio.model_components.losses import (
     MSELoss,
@@ -180,11 +179,15 @@ class NerfactoLUT3DModel(Model):
         )
 
         # 3D Look-up-table light field.
-        self.lut3d = LUT3DField(
-            positional_encoding=NeRFEncoding(
-                in_dim=3, num_frequencies=10, min_freq_exp=0.0, max_freq_exp=8.0, include_input=True
-            ),
+        self.lut3d = LUT3DFieldHashEncoding(
+            self.scene_box.aabb,
+            num_levels=self.config.num_levels,
+            max_res=self.config.max_res,
+            base_res=self.config.base_res,
+            features_per_level=self.config.features_per_level,
+            log2_hashmap_size=self.config.log2_hashmap_size,
             spatial_distortion=scene_contraction,
+            implementation=self.config.implementation,
         )
 
         self.camera_optimizer: CameraOptimizer = self.config.camera_optimizer.setup(
