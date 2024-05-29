@@ -182,11 +182,7 @@ class NerfactoLUT3DModel(Model):
         # 3D Look-up-table light field.
         self.lut3d = LUT3DField(
             positional_encoding=NeRFEncoding(
-                in_dim=3,
-                num_frequencies=2,
-                min_freq_exp=0,
-                max_freq_exp=2 - 1,
-                implementation=self.config.implementation,
+                in_dim=3, num_frequencies=10, min_freq_exp=0.0, max_freq_exp=8.0, include_input=True
             ),
             spatial_distortion=scene_contraction,
         )
@@ -337,12 +333,11 @@ class NerfactoLUT3DModel(Model):
 
         # Apply the look up table affine transform
 
-        if True:
-            rgb_affine = self.lut3d.forward(ray_bundle, depth)[FieldHeadNames.RGB_AFFINE]
-            rgb_train = rgb_affine * rgb
+        rgb_affine = self.lut3d.forward(ray_bundle, depth)[FieldHeadNames.RGB_AFFINE]
+        rgb_train = rgb_affine * rgb
 
         outputs = {
-            "rgb": rgb_train if self.training else rgb,
+            "rgb": rgb_train,
             "rgb_eval": rgb,
             "accumulation": accumulation,
             "depth": depth,

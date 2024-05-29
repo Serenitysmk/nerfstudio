@@ -170,7 +170,29 @@
         "--pipeline.model.camera-optimizer.mode",
         "off",
         "--pipeline.model.use-appearance-embedding",
-        "False"
+        "False",
+        "--vis",
+        "viewer+tensorboard"
+      ]
+    },
+    {
+      "name": "Python: train vanilla-nerf",
+      "type": "python",
+      "request": "launch",
+      "program": "nerfstudio/scripts/train.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {"CUDA_VISIBLE_DEVICES": "0"},
+      "args": [
+        "vanilla-nerf",
+        "--experiment-name",
+        "vanilla-nerf-on-lego",
+        "--output-dir",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/NeRF_Data/lego-20240528T181502Z-001/lego/train_result/",
+        "--data",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/NeRF_Data/lego-20240528T181502Z-001/lego/",
+        "--vis",
+        "viewer"
       ]
     }
   ]

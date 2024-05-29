@@ -45,6 +45,7 @@ class LUT3DField(nn.Module):
                 in_dim=self.mlp_base.get_out_dim(),
                 num_layers=head_mlp_num_lyaers,
                 layer_width=head_mlp_layer_width,
+                out_activation=nn.ReLU(),
             )
         self.field_heads = nn.ModuleList([field_head() for field_head in field_heads] if field_heads else [])  # type: ignore
         for field_head in self.field_heads:
@@ -55,19 +56,17 @@ class LUT3DField(nn.Module):
         # Generate points from depth measurements
         point = ray_bundle.origins + ray_bundle.directions * depth
         w2cs = pose_utils.inverse(ray_bundle.metadata["camera_to_worlds"].view(ray_bundle.shape[0], 3, 4))
-        if not self.training:
-            print(f"w2cs: {w2cs.shape}")
         point_local = (torch.matmul(w2cs[..., :3, :3], point.unsqueeze(-1)) + w2cs[..., :3, 3:]).squeeze(-1)
 
         # Compute output from the query points.
         if self.spatial_distortion is not None:
             point_local = self.spatial_distortion(point_local)
+            point_local = (point_local + 2.0) / 4.0
         encoded_xyz = self.position_encoding(point_local)
+
         base_mlp_out = self.mlp_base(encoded_xyz)
 
         for field_head in self.field_heads:
             mlp_out = self.mlp_head(base_mlp_out)  # type: ignore
             outputs[field_head.field_head_name] = field_head(mlp_out)
-        if not self.training:
-            print(f"Done: {outputs[field_head.field_head_name].shape}")
         return outputs
