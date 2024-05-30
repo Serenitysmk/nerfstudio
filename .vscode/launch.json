@@ -160,7 +160,7 @@
       "args": [
         "nerfacto-lut3d",
         "--experiment-name",
-        "use-nerfacto-lut3d-on-raw-images",
+        "lut3d-with-normal",
         "--output-dir",
         "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/CMU-DarkGS-data/lab1/nerfstudio/train/",
         "--data",

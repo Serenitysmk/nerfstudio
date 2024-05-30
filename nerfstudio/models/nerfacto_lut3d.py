@@ -334,11 +334,22 @@ class NerfactoLUT3DModel(Model):
         expected_depth = self.renderer_expected_depth(weights=weights, ray_samples=ray_samples)
         accumulation = self.renderer_accumulation(weights=weights)
 
+        outputs = {}
+
+        if self.config.predict_normals:
+            normals = self.renderer_normals(normals=field_outputs[FieldHeadNames.NORMALS], weights=weights)
+            pred_normals = self.renderer_normals(field_outputs[FieldHeadNames.PRED_NORMALS], weights=weights)
+            outputs["normals"] = self.normals_shader(normals)
+            outputs["pred_normals"] = self.normals_shader(pred_normals)
+        else:
+            outputs["normals"] = None
+
         # Apply the look up table affine transform
 
         rgb_affine = self.lut3d.forward(
             ray_samples,
             field_outputs[FieldHeadNames.DENSITY],
+            outputs["normals"],
             ray_bundle.metadata["camera_to_worlds"].view(ray_bundle.shape[0], 3, 4),
         )[FieldHeadNames.RGB_AFFINE]
         rgb_train = rgb_affine * rgb
@@ -351,11 +362,6 @@ class NerfactoLUT3DModel(Model):
             "expected_depth": expected_depth,
         }
 
-        if self.config.predict_normals:
-            normals = self.renderer_normals(normals=field_outputs[FieldHeadNames.NORMALS], weights=weights)
-            pred_normals = self.renderer_normals(field_outputs[FieldHeadNames.PRED_NORMALS], weights=weights)
-            outputs["normals"] = self.normals_shader(normals)
-            outputs["pred_normals"] = self.normals_shader(pred_normals)
         # These use a lot of GPU memory, so we avoid storing them for eval.
         if self.training:
             outputs["weights_list"] = weights_list
