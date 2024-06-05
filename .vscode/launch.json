@@ -160,19 +160,21 @@
       "args": [
         "nerfacto-lut3d",
         "--experiment-name",
-        "lut3d-with-normal",
-        "--output-dir",
-        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/CMU-DarkGS-data/lab1/nerfstudio/train/",
+        "nerflut3d",
         "--data",
-        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/CMU-DarkGS-data/lab1/nerfstudio/data/",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/25_10_2023_tank_in_air_artificial/nerfstudio/data",
+        "--output-dir",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/25_10_2023_tank_in_air_artificial/nerfstudio/train/",
         "--pipeline.model.predict-normals",
-        "True",
+        "False",
         "--pipeline.model.camera-optimizer.mode",
         "off",
         "--pipeline.model.use-appearance-embedding",
         "False",
         "--vis",
-        "viewer+tensorboard"
+        "viewer",
+        "--pipeline.datamanager.camera-res-scale-factor",
+        "0.5"
       ]
     },
     {

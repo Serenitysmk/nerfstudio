@@ -181,11 +181,12 @@ class NerfactoLUT3DModel(Model):
         # 3D Look-up-table light field.
         self.lut3d = LUT3DFieldHashEncoding(
             self.scene_box.aabb,
-            num_levels=self.config.num_levels,
-            max_res=self.config.max_res,
+            num_levels=int(self.config.num_levels / 2),
+            max_res=int(self.config.max_res / 2),
             base_res=self.config.base_res,
             features_per_level=self.config.features_per_level,
-            log2_hashmap_size=self.config.log2_hashmap_size,
+            log2_hashmap_size=self.config.log2_hashmap_size - 2,
+            hidden_dim=int(self.config.hidden_dim / 2),
             spatial_distortion=scene_contraction,
             implementation=self.config.implementation,
         )
@@ -334,22 +335,11 @@ class NerfactoLUT3DModel(Model):
         expected_depth = self.renderer_expected_depth(weights=weights, ray_samples=ray_samples)
         accumulation = self.renderer_accumulation(weights=weights)
 
-        outputs = {}
-
-        if self.config.predict_normals:
-            normals = self.renderer_normals(normals=field_outputs[FieldHeadNames.NORMALS], weights=weights)
-            pred_normals = self.renderer_normals(field_outputs[FieldHeadNames.PRED_NORMALS], weights=weights)
-            outputs["normals"] = self.normals_shader(normals)
-            outputs["pred_normals"] = self.normals_shader(pred_normals)
-        else:
-            outputs["normals"] = None
-
         # Apply the look up table affine transform
-
         rgb_affine = self.lut3d.forward(
             ray_samples,
             field_outputs[FieldHeadNames.DENSITY],
-            outputs["normals"],
+            None,
             ray_bundle.metadata["camera_to_worlds"].view(ray_bundle.shape[0], 3, 4),
         )[FieldHeadNames.RGB_AFFINE]
         rgb_train = torch.minimum(rgb_affine * rgb, torch.ones_like(rgb_affine))
@@ -362,6 +352,11 @@ class NerfactoLUT3DModel(Model):
             "expected_depth": expected_depth,
         }
 
+        if self.config.predict_normals:
+            normals = self.renderer_normals(normals=field_outputs[FieldHeadNames.NORMALS], weights=weights)
+            pred_normals = self.renderer_normals(field_outputs[FieldHeadNames.PRED_NORMALS], weights=weights)
+            outputs["normals"] = self.normals_shader(normals)
+            outputs["pred_normals"] = self.normals_shader(pred_normals)
         # These use a lot of GPU memory, so we avoid storing them for eval.
         if self.training:
             outputs["weights_list"] = weights_list
