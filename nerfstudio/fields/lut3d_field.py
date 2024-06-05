@@ -15,7 +15,6 @@ from nerfstudio.field_components.encodings import Encoding, Identity, SHEncoding
 from nerfstudio.field_components.field_heads import FieldHead, FieldHeadNames, RGBAffineFieldHead
 from nerfstudio.field_components.mlp import MLP, MLPWithHashEncoding
 from nerfstudio.field_components.spatial_distortions import SpatialDistortion
-from nerfstudio.fields.base_field import get_normalized_directions
 
 
 class LUT3DField(nn.Module):
@@ -121,8 +120,8 @@ class LUT3DFieldHashEncoding(nn.Module):
 
         # MLP head
         self.mlp_head = MLP(
-            in_dim=self.direction_encoding.get_out_dim() + self.geo_feat_dim,
-            num_layers=3,
+            in_dim=self.geo_feat_dim,
+            num_layers=2,
             layer_width=64,
             out_dim=3,
             activation=nn.ReLU(),
@@ -172,11 +171,11 @@ class LUT3DFieldHashEncoding(nn.Module):
             positions = SceneBox.get_normalized_positions(positions, self.aabb)
 
         # Convert all normals to the local camera coordinate space
-        w2cs = w2cs.squeeze(1)
-        n_cam = get_normalized_directions((torch.matmul(w2cs[..., :3, :3], normals.unsqueeze(-1))).squeeze(-1))
-        n_cam = n_cam.unsqueeze(1)
-        n_cam = n_cam.repeat(1, ray_samples.shape[1], 1).view(-1, 3)
-        d = self.direction_encoding(n_cam)
+        # w2cs = w2cs.squeeze(1)
+        # n_cam = get_normalized_directions((torch.matmul(w2cs[..., :3, :3], normals.unsqueeze(-1))).squeeze(-1))
+        # n_cam = n_cam.unsqueeze(1)
+        # n_cam = n_cam.repeat(1, ray_samples.shape[1], 1).view(-1, 3)
+        # d = self.direction_encoding(n_cam)
 
         # Make sure the tcnn gets inputs between 0 and 1.
         selector = ((positions > 0.0) & (positions < 1.0)).all(dim=-1)
@@ -184,9 +183,9 @@ class LUT3DFieldHashEncoding(nn.Module):
         positions_flat = positions.view(-1, 3)
         base_mlp_out = self.mlp_base(positions_flat)
 
-        h = torch.cat([d, base_mlp_out], dim=-1)
+        # h = torch.cat([d, base_mlp_out], dim=-1)
 
-        rgb = self.mlp_head(h).view(*ray_samples.frustums.shape, -1).to(densities)
+        rgb = self.mlp_head(base_mlp_out).view(*ray_samples.frustums.shape, -1).to(densities)
 
         # Map densities to a normalized weight using a temperatured softmax operation.
         # weight = nn.functional.normalize(densities, dim=1, p=1)

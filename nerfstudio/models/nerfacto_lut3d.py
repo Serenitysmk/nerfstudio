@@ -352,7 +352,7 @@ class NerfactoLUT3DModel(Model):
             outputs["normals"],
             ray_bundle.metadata["camera_to_worlds"].view(ray_bundle.shape[0], 3, 4),
         )[FieldHeadNames.RGB_AFFINE]
-        rgb_train = rgb_affine * rgb
+        rgb_train = torch.minimum(rgb_affine * rgb, torch.ones_like(rgb_affine))
 
         outputs = {
             "rgb": rgb_train,
@@ -403,6 +403,11 @@ class NerfactoLUT3DModel(Model):
             pred_accumulation=outputs["accumulation"],
             gt_image=image,
         )
+
+        # RawNeRF weighted L2 loss
+        # scaling_grad = 1.0 / (1e-3 + pred_rgb.detach())
+        # gt_rgb = scaling_grad * gt_rgb
+        # pred_rgb = scaling_grad * pred_rgb
 
         loss_dict["rgb_loss"] = self.rgb_loss(gt_rgb, pred_rgb)
         if self.training:
