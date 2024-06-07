@@ -162,7 +162,7 @@
         "--experiment-name",
         "nerflut3d",
         "--data",
-        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/25_10_2023_tank_in_air_artificial/nerfstudio/data",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/25_10_2023_tank_in_air_artificial/",
         "--output-dir",
         "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/25_10_2023_tank_in_air_artificial/nerfstudio/train/",
         "--pipeline.model.predict-normals",
@@ -172,9 +172,7 @@
         "--pipeline.model.use-appearance-embedding",
         "False",
         "--vis",
-        "viewer",
-        "--pipeline.datamanager.camera-res-scale-factor",
-        "0.5"
+        "viewer"
       ]
     },
     {

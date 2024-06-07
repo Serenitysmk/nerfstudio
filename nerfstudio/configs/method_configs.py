@@ -34,7 +34,9 @@ from nerfstudio.data.datamanagers.base_datamanager import (
 from nerfstudio.data.datamanagers.full_images_datamanager import FullImageDatamanagerConfig
 from nerfstudio.data.datamanagers.parallel_datamanager import ParallelDataManagerConfig
 from nerfstudio.data.datamanagers.random_cameras_datamanager import RandomCamerasDataManagerConfig
+from nerfstudio.data.datamanagers.raw_image_datamanager import RawImageDataManager, RawImageDataManagerConfig
 from nerfstudio.data.dataparsers.blender_dataparser import BlenderDataParserConfig
+from nerfstudio.data.dataparsers.colmap_raw_image_dataparser import ColmapRawImageDataParserConfig
 from nerfstudio.data.dataparsers.dnerf_dataparser import DNeRFDataParserConfig
 from nerfstudio.data.dataparsers.instant_ngp_dataparser import InstantNGPDataParserConfig
 from nerfstudio.data.dataparsers.nerfstudio_dataparser import NerfstudioDataParserConfig
@@ -42,6 +44,7 @@ from nerfstudio.data.dataparsers.phototourism_dataparser import PhototourismData
 from nerfstudio.data.dataparsers.sdfstudio_dataparser import SDFStudioDataParserConfig
 from nerfstudio.data.dataparsers.sitcoms3d_dataparser import Sitcoms3DDataParserConfig
 from nerfstudio.data.datasets.depth_dataset import DepthDataset
+from nerfstudio.data.datasets.raw_image_dataset import RawImageDataset
 from nerfstudio.data.datasets.sdf_dataset import SDFDataset
 from nerfstudio.data.datasets.semantic_dataset import SemanticDataset
 from nerfstudio.data.pixel_samplers import PairPixelSamplerConfig
@@ -709,9 +712,9 @@ method_configs["nerfacto-lut3d"] = TrainerConfig(
     max_num_iterations=30000,
     mixed_precision=True,
     pipeline=VanillaPipelineConfig(
-        datamanager=VanillaDataManagerConfig(
-            _target=VanillaDataManagerWithCameraPoses,
-            dataparser=NerfstudioDataParserConfig(downscale_factor=2),
+        datamanager=RawImageDataManagerConfig(
+            _target=RawImageDataManager[RawImageDataset],
+            dataparser=ColmapRawImageDataParserConfig(downscale_factor=2),
             train_num_rays_per_batch=4096,
             eval_num_rays_per_batch=4096,
         ),
