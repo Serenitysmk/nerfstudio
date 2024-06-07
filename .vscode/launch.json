@@ -196,6 +196,25 @@
         "--vis",
         "viewer"
       ]
+    },
+    {
+      "name": "Python: process data",
+      "type": "python",
+      "request": "launch",
+      "program": "nerfstudio/scripts/process_data.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {"CUDA_VISIBLE_DEVICES": "0"},
+      "args": [
+        "images",
+        "--data",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/25_10_2023_tank_in_air_artificial/raw_dngs",
+        "--output-dir",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/25_10_2023_tank_in_air_artificial/nerfstudio/data_debug/",
+        "--colmap-model-path",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/25_10_2023_tank_in_air_artificial/colmap/sparse/",
+        "--skip-colmap",
+      ]
     }
   ]
 }

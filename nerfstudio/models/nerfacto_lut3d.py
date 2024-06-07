@@ -181,12 +181,12 @@ class NerfactoLUT3DModel(Model):
         # 3D Look-up-table light field.
         self.lut3d = LUT3DFieldHashEncoding(
             self.scene_box.aabb,
-            num_levels=int(self.config.num_levels / 2),
-            max_res=int(self.config.max_res / 2),
+            num_levels=int(self.config.num_levels / 4),
+            max_res=int(self.config.max_res / 4),
             base_res=self.config.base_res,
             features_per_level=self.config.features_per_level,
-            log2_hashmap_size=self.config.log2_hashmap_size - 2,
-            hidden_dim=int(self.config.hidden_dim / 2),
+            log2_hashmap_size=self.config.log2_hashmap_size - 4,
+            hidden_dim=int(self.config.hidden_dim / 4),
             spatial_distortion=scene_contraction,
             implementation=self.config.implementation,
         )
