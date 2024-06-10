@@ -1,5 +1,6 @@
 """Data parser for COLMAP with raw image data."""
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Type
@@ -12,6 +13,7 @@ from nerfstudio.cameras.cameras import CAMERA_MODEL_TO_TYPE, Cameras
 from nerfstudio.data.dataparsers.base_dataparser import DataparserOutputs
 from nerfstudio.data.dataparsers.colmap_dataparser import ColmapDataParser, ColmapDataParserConfig
 from nerfstudio.data.scene_box import SceneBox
+from nerfstudio.utils import raw_utils
 
 
 @dataclass
@@ -99,11 +101,10 @@ class ColmapRawImageDataParser(ColmapDataParser):
         scale_factor *= self.config.scale_factor
         poses[:, :3, 3] *= scale_factor
 
+        exif_filenames = [path.with_suffix(".json") for path in image_filenames]
+
         # Choose image_filenames and poses based on split, but after auto orient and scaling the poses.
         indices = self._get_image_indices(image_filenames, split)
-        # image_filenames, mask_filenames, depth_filenames, downscale_factor = self._setup_downscale_factor(
-        #     image_filenames, mask_filenames, depth_filenames
-        # )
 
         image_filenames = [image_filenames[i] for i in indices]
         mask_filenames = [mask_filenames[i] for i in indices] if len(mask_filenames) > 0 else []
@@ -129,6 +130,28 @@ class ColmapRawImageDataParser(ColmapDataParser):
         width = torch.tensor(width, dtype=torch.int32)[idx_tensor]
         distortion_params = torch.stack(distort, dim=0)[idx_tensor]
 
+        # Read camera metadata
+        def read_exif(p):
+            with open(p.as_posix(), "rb") as f:
+                exif = json.load(f)[0]
+                return exif
+
+        meta = raw_utils.process_exif([read_exif(p) for p in exif_filenames])
+
+        exposure = meta["ShutterSpeed"]
+        tgt_exposure = np.mean(exposure)
+        exposure_scale = tgt_exposure / exposure
+        black_level = np.mean(meta["BlackLevel"], axis=-1)
+        white_level = meta["WhiteLevel"]
+        cam2rgb = meta["cam2rgb"]
+
+        cam_meta = {
+            "black_level": torch.from_numpy(black_level)[idx_tensor].unsqueeze(-1),
+            "white_level": torch.from_numpy(white_level)[idx_tensor].unsqueeze(-1),
+            "exposure_scale": torch.from_numpy(exposure_scale)[idx_tensor].unsqueeze(-1),
+            "cam2rgb": torch.from_numpy(cam2rgb)[idx_tensor].reshape(-1, 9),
+        }
+
         cameras = Cameras(
             fx=fx,
             fy=fy,
@@ -139,10 +162,11 @@ class ColmapRawImageDataParser(ColmapDataParser):
             width=width,
             camera_to_worlds=poses[:, :3, :4],
             camera_type=camera_type,
+            metadata=cam_meta,
         )
 
         cameras.rescale_output_resolution(
-            scaling_factor=1.0 / float(self.config.downscale_factor),
+            scaling_factor=1.0 / int(self.config.downscale_factor),
             scale_rounding_mode=self.config.downscale_rounding_mode,
         )
 

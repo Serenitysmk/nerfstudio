@@ -51,7 +51,7 @@ from nerfstudio.model_components.renderers import AccumulationRenderer, DepthRen
 from nerfstudio.model_components.scene_colliders import NearFarCollider
 from nerfstudio.model_components.shaders import NormalsShader
 from nerfstudio.models.base_model import Model, ModelConfig
-from nerfstudio.utils import colormaps
+from nerfstudio.utils import colormaps, raw_utils
 
 
 @dataclass
@@ -271,6 +271,8 @@ class NerfactoLUT3DModel(Model):
         self.lpips = LearnedPerceptualImagePatchSimilarity(normalize=True)
         self.step = 0
 
+        self.cached_cam2rgb = None
+
     def get_param_groups(self) -> Dict[str, List[Parameter]]:
         param_groups = {}
         param_groups["proposal_networks"] = list(self.proposal_networks.parameters())
@@ -342,11 +344,20 @@ class NerfactoLUT3DModel(Model):
             None,
             ray_bundle.metadata["camera_to_worlds"].view(ray_bundle.shape[0], 3, 4),
         )[FieldHeadNames.RGB_AFFINE]
-        rgb_train = torch.minimum(rgb_affine * rgb, torch.ones_like(rgb_affine))
+        rgb_train = torch.minimum(rgb_affine * rgb, torch.ones_like(rgb))
+        # rgb_train = rgb_affine * rgb
+        with torch.no_grad():
+            has_cam2rgb = "cam2rgb" in ray_bundle.metadata
+            if self.cached_cam2rgb is None and has_cam2rgb:
+                self.cached_cam2rgb = ray_bundle.metadata["cam2rgb"][0].to(rgb)
+            if self.cached_cam2rgb is not None:
+                rgb_eval = raw_utils.postprocess_raw(rgb, self.cached_cam2rgb.reshape(3, 3))
+            else:
+                rgb_eval = rgb
 
         outputs = {
             "rgb": rgb_train,
-            "rgb_eval": rgb,
+            "rgb_eval": rgb_eval,
             "accumulation": accumulation,
             "depth": depth,
             "expected_depth": expected_depth,

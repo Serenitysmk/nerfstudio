@@ -150,6 +150,34 @@
       ]
     },
     {
+      "name": "Python: train nerfacto-lut3d-raw",
+      "type": "python",
+      "request": "launch",
+      "program": "nerfstudio/scripts/train.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {"CUDA_VISIBLE_DEVICES": "0"},
+      "args": [
+        "nerfacto-lut3d-raw",
+        "--experiment-name",
+        "nerflut3d",
+        "--data",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/debug_set",
+        "--output-dir",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/25_10_2023_tank_in_air_artificial/nerfstudio/train_debug",
+        "--pipeline.model.predict-normals",
+        "False",
+        "--pipeline.model.camera-optimizer.mode",
+        "off",
+        "--pipeline.model.use-appearance-embedding",
+        "False",
+        "--pipeline.datamanager.camera_res_scale_factor",
+        "0.5",
+        "--vis",
+        "tensorboard"
+      ]
+    },
+    {
       "name": "Python: train nerfacto-lut3d",
       "type": "python",
       "request": "launch",
