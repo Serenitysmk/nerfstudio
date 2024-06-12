@@ -1,32 +1,34 @@
 from typing import Any, Mapping, MutableMapping, Optional, Sequence
 
 import numpy as np
-import torch
+
+# The following code for raw data processing comes from RawNeRF:
+# https://github.com/google-research/multinerf/blob/main/internal/raw_utils.py
 
 
-def linear_to_srgb(linear: torch.Tensor, eps: Optional[float] = None) -> torch.Tensor:
+def linear_to_srgb(linear: np.ndarray, eps: Optional[float] = None) -> np.ndarray:
     """Assumes `linear` is in [0, 1], see https://en.wikipedia.org/wiki/SRGB."""
     if eps is None:
-        eps = torch.tensor([torch.finfo(torch.float32).eps]).to(linear.device)
+        eps = np.finfo(np.float32).eps
     srgb0 = 323 / 25 * linear
-    srgb1 = (211 * torch.maximum(eps, linear) ** (5 / 12) - 11) / 200
-    return torch.where(linear <= 0.0031308, srgb0, srgb1)
+    srgb1 = (211 * np.maximum(eps, linear) ** (5 / 12) - 11) / 200
+    return np.where(linear <= 0.0031308, srgb0, srgb1)
 
 
-def srgb_to_linear(srgb: torch.Tensor, eps: Optional[float] = None) -> torch.Tensor:
+def srgb_to_linear(srgb: np.ndarray, eps: Optional[float] = None) -> np.ndarray:
     """Assumes `srgb` is in [0, 1], see https://en.wikipedia.org/wiki/SRGB."""
     if eps is None:
-        eps = torch.tensor([torch.finfo(torch.float32).eps]).to(linear.device)
+        eps = np.finfo(np.float32).eps
     linear0 = 25 / 323 * srgb
-    linear1 = torch.maximum(eps, ((200 * srgb + 11) / (211))) ** (12 / 5)
-    return torch.where(srgb <= 0.04045, linear0, linear1)
+    linear1 = np.maximum(eps, ((200 * srgb + 11) / (211))) ** (12 / 5)
+    return np.where(srgb <= 0.04045, linear0, linear1)
 
 
 def postprocess_raw(
-    raw: torch.Tensor,
-    camtorgb: torch.Tensor,
+    raw: np.ndarray,
+    camtorgb: np.ndarray,
     exposure: Optional[float] = None,
-) -> torch.Tensor:
+) -> np.ndarray:
     """Converts demosaicked raw to sRGB with a minimal postprocessing pipeline.
 
     Numpy array inputs will be automatically converted to Jax arrays.
@@ -46,13 +48,11 @@ def postprocess_raw(
     if camtorgb.shape != (3, 3):
         raise ValueError(f"camtorgb.shape is {camtorgb.shape}, expected (3, 3)")
     # Convert from camera color space to standard linear RGB color space.
-    # For I don't know what reason that rgb_linear turns to float16 precesion after matmul
-    rgb_linear = (raw @ camtorgb.T).to(raw)
+    rgb_linear = np.matmul(raw, camtorgb.T)
     if exposure is None:
-        # exposure = torch.quantile(rgb_linear, 0.97)
-        pass
+        exposure = np.percentile(rgb_linear, 100)
     # "Expose" image by mapping the input exposure level to white and clipping.
-    rgb_linear_scaled = torch.clamp(rgb_linear, 0, 1)
+    rgb_linear_scaled = np.clip(rgb_linear / exposure, 0, 1)
     # Apply sRGB gamma curve to serve as a simple tonemap.
     srgb = linear_to_srgb(rgb_linear_scaled)
     return srgb

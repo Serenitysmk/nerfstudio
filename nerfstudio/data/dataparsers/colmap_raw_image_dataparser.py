@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Type
 
 import numpy as np
+import rawpy
 import torch
 
 from nerfstudio.cameras import camera_utils
@@ -141,15 +142,25 @@ class ColmapRawImageDataParser(ColmapDataParser):
         exposure = meta["ShutterSpeed"]
         tgt_exposure = np.mean(exposure)
         exposure_scale = tgt_exposure / exposure
-        black_level = np.mean(meta["BlackLevel"], axis=-1)
+        black_level = meta["BlackLevel"] if meta["BlackLevel"].ndim == 1 else np.mean(meta["BlackLevel"], axis=-1)
         white_level = meta["WhiteLevel"]
         cam2rgb = meta["cam2rgb"]
+
+        # Read and process one raw image to determine the fixed exposure value
+        with open(image_filenames[0].as_posix(), "rb") as f:
+            raw0 = rawpy.imread(f).raw_image
+            raw0 = raw0.astype(np.float32)
+            im0 = (raw0 - black_level[0]) / (white_level[0] - black_level[0])
+            im0 = raw_utils.bilinear_demosaic(im0)
+            im0_linear = np.matmul(im0, cam2rgb[0].T)
+            exposure = np.percentile(im0_linear, 97)
 
         cam_meta = {
             "black_level": torch.from_numpy(black_level)[idx_tensor].unsqueeze(-1),
             "white_level": torch.from_numpy(white_level)[idx_tensor].unsqueeze(-1),
             "exposure_scale": torch.from_numpy(exposure_scale)[idx_tensor].unsqueeze(-1),
             "cam2rgb": torch.from_numpy(cam2rgb)[idx_tensor].reshape(-1, 9),
+            "exposure": torch.tensor([exposure]),
         }
 
         cameras = Cameras(

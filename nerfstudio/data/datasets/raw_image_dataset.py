@@ -30,13 +30,13 @@ class RawImageDataset(InputDataset):
             exposure_scale = self._dataparser_outputs.cameras.metadata["exposure_scale"][image_idx].numpy()  # type: ignore
 
             im = (raw - black_level) / (white_level - black_level)
-            # im = im * exposure_scale
+            im = im * exposure_scale
             # Demosaic Bayer images (preserves the measured RGGB values).
             im = raw_utils.bilinear_demosaic(im)
             if self.scale_factor != 1.0:
                 downscale_factor = int(1.0 / self.scale_factor)
                 im = raw_utils.downsample(im, downscale_factor)
-            im = torch.clamp(torch.from_numpy(im).to(torch.float32), 0, 1)
+            im = torch.from_numpy(im).to(torch.float32)
             return im
 
         im = processing_fn(raw)

@@ -39,7 +39,7 @@ from nerfstudio.field_components.spatial_distortions import SpatialDistortion
 from nerfstudio.fields.base_field import Field, get_normalized_directions
 
 
-class NerfactoField(Field):
+class RawNerfactoField(Field):
     """Compound Field
 
     Args:
@@ -196,7 +196,7 @@ class NerfactoField(Field):
             layer_width=hidden_dim_color,
             out_dim=3,
             activation=nn.ReLU(),
-            out_activation=nn.Sigmoid(),
+            out_activation=None,
             implementation=implementation,
         )
 
@@ -299,7 +299,8 @@ class NerfactoField(Field):
             ),
             dim=-1,
         )
-        rgb = self.mlp_head(h).view(*outputs_shape, -1).to(directions)
+        rgb_before_activation = self.mlp_head(h).view(*outputs_shape, -1).to(directions)
+        rgb = torch.exp(rgb_before_activation - 5.0)
         outputs.update({FieldHeadNames.RGB: rgb})
 
         return outputs

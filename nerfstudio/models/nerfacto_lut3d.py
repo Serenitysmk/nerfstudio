@@ -37,7 +37,7 @@ from nerfstudio.field_components.field_heads import FieldHeadNames
 from nerfstudio.field_components.spatial_distortions import SceneContraction
 from nerfstudio.fields.density_fields import HashMLPDensityField
 from nerfstudio.fields.lut3d_field import LUT3DFieldHashEncoding
-from nerfstudio.fields.nerfacto_field import NerfactoField
+from nerfstudio.fields.raw_nerfacto_field import RawNerfactoField
 from nerfstudio.model_components.losses import (
     MSELoss,
     distortion_loss,
@@ -159,7 +159,7 @@ class NerfactoLUT3DModel(Model):
         appearance_embedding_dim = self.config.appearance_embed_dim if self.config.use_appearance_embedding else 0
 
         # Fields
-        self.field = NerfactoField(
+        self.field = RawNerfactoField(
             self.scene_box.aabb,
             hidden_dim=self.config.hidden_dim,
             num_levels=self.config.num_levels,
@@ -272,6 +272,7 @@ class NerfactoLUT3DModel(Model):
         self.step = 0
 
         self.cached_cam2rgb = None
+        self.cached_exposure = None
 
     def get_param_groups(self) -> Dict[str, List[Parameter]]:
         param_groups = {}
@@ -344,20 +345,20 @@ class NerfactoLUT3DModel(Model):
             None,
             ray_bundle.metadata["camera_to_worlds"].view(ray_bundle.shape[0], 3, 4),
         )[FieldHeadNames.RGB_AFFINE]
-        rgb_train = torch.minimum(rgb_affine * rgb, torch.ones_like(rgb))
-        # rgb_train = rgb_affine * rgb
+        # rgb_train = torch.minimum(rgb_affine * rgb, torch.ones_like(rgb))
+        rgb_train = rgb_affine * rgb
+
         with torch.no_grad():
             has_cam2rgb = "cam2rgb" in ray_bundle.metadata
+            has_exposure = "exposure" in ray_bundle.metadata
             if self.cached_cam2rgb is None and has_cam2rgb:
-                self.cached_cam2rgb = ray_bundle.metadata["cam2rgb"][0].to(rgb)
-            if self.cached_cam2rgb is not None:
-                rgb_eval = raw_utils.postprocess_raw(rgb, self.cached_cam2rgb.reshape(3, 3))
-            else:
-                rgb_eval = rgb
+                self.cached_cam2rgb = ray_bundle.metadata["cam2rgb"][0].reshape(3, 3).cpu().numpy()
+            if self.cached_exposure is None and has_exposure:
+                self.cached_exposure = ray_bundle.metadata["exposure"][0].cpu().float()
 
         outputs = {
             "rgb": rgb_train,
-            "rgb_eval": rgb_eval,
+            "rgb_eval": rgb,
             "accumulation": accumulation,
             "depth": depth,
             "expected_depth": expected_depth,
@@ -411,11 +412,12 @@ class NerfactoLUT3DModel(Model):
         )
 
         # RawNeRF weighted L2 loss
-        # scaling_grad = 1.0 / (1e-3 + pred_rgb.detach())
-        # gt_rgb = scaling_grad * gt_rgb
-        # pred_rgb = scaling_grad * pred_rgb
+        pred_rgb_clip = torch.minimum(torch.ones_like(pred_rgb), pred_rgb)
+        scaling_grad = 1.0 / (1e-3 + pred_rgb_clip.detach())
+        gt_rgb = scaling_grad * gt_rgb
+        pred_rgb_clip = scaling_grad * pred_rgb_clip
 
-        loss_dict["rgb_loss"] = self.rgb_loss(gt_rgb, pred_rgb)
+        loss_dict["rgb_loss"] = self.rgb_loss(gt_rgb, pred_rgb_clip)
         if self.training:
             loss_dict["interlevel_loss"] = self.config.interlevel_loss_mult * interlevel_loss(
                 outputs["weights_list"], outputs["ray_samples_list"]
@@ -522,4 +524,8 @@ class NerfactoLUT3DModel(Model):
         outputs = {}
         for output_name, outputs_list in outputs_lists.items():
             outputs[output_name] = torch.cat(outputs_list).view(image_height, image_width, -1)  # type: ignore
+        # Additionally post process raw rgb image into linear sRGB image
+        if self.cached_cam2rgb is not None and self.cached_exposure is not None:
+            rgb_eval = raw_utils.postprocess_raw(outputs["rgb_eval"].cpu().numpy(), self.cached_cam2rgb)
+            outputs["rgb_eval"] = torch.from_numpy(rgb_eval).to(outputs["rgb"])
         return outputs

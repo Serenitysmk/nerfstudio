@@ -43,6 +43,7 @@ class FieldHeadNames(Enum):
     ALPHA = "alpha"
     GRADIENT = "gradient"
     RGB_AFFINE = "rgb_affine"
+    RGB_RAW = "rgb_raw"
 
 
 class FieldHead(FieldComponent):
@@ -219,3 +220,20 @@ class RGBAffineFieldHead(FieldHead):
 
     def __init__(self, in_dim: Optional[int] = None, activation: Optional[nn.Module] = nn.Sigmoid()) -> None:
         super().__init__(in_dim=in_dim, out_dim=3, field_head_name=FieldHeadNames.RGB_AFFINE, activation=activation)
+
+
+class RGBRawFieldHead(FieldHead):
+    """RGB raw output
+
+    Args:
+        in_dim: input dimension. If not defined in constructor, it must be set later.
+        activation: output head activation
+    """
+
+    def __init__(self, in_dim: Optional[int] = None, activation: Optional[nn.Module] = None) -> None:
+        super().__init__(in_dim=in_dim, out_dim=3, field_head_name=FieldHeadNames.RGB, activation=activation)
+
+    def forward(self, in_tensor: Float[Tensor, "*bs in_dim"]) -> Float[Tensor, "*bs out_dim"]:
+        out_tensor = super().forward(in_tensor)
+        out_tensor = torch.exp(torch.minimum(out_tensor, torch.tensor(88.0).to(out_tensor)) - 5.0)
+        return out_tensor
