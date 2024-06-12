@@ -357,7 +357,7 @@ class NerfactoLUT3DModel(Model):
                 self.cached_exposure = ray_bundle.metadata["exposure"][0].cpu().float()
 
         outputs = {
-            "rgb": rgb_train,
+            "rgb": rgb,
             "rgb_eval": rgb,
             "accumulation": accumulation,
             "depth": depth,
@@ -526,6 +526,8 @@ class NerfactoLUT3DModel(Model):
             outputs[output_name] = torch.cat(outputs_list).view(image_height, image_width, -1)  # type: ignore
         # Additionally post process raw rgb image into linear sRGB image
         if self.cached_cam2rgb is not None and self.cached_exposure is not None:
-            rgb_eval = raw_utils.postprocess_raw(outputs["rgb_eval"].cpu().numpy(), self.cached_cam2rgb)
+            rgb_eval = raw_utils.postprocess_raw(
+                outputs["rgb_eval"].cpu().numpy(), self.cached_cam2rgb, self.cached_exposure
+            )
             outputs["rgb_eval"] = torch.from_numpy(rgb_eval).to(outputs["rgb"])
         return outputs

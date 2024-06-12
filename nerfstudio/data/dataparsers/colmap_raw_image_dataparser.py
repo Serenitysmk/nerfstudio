@@ -72,7 +72,7 @@ class ColmapRawImageDataParser(ColmapDataParser):
                     p2=float(frame["p2"]) if "p2" in frame else 0.0,
                 )
             )
-            fname = Path(frame["file_path"]).with_suffix(".DNG").name
+            fname = Path(frame["file_path"]).with_suffix(".dng").name
             image_filenames.append(self.config.data / self.config.raw_path / fname)
             poses.append(frame["transform_matrix"])
             if "mask_path" in frame:
@@ -146,6 +146,17 @@ class ColmapRawImageDataParser(ColmapDataParser):
         white_level = meta["WhiteLevel"]
         cam2rgb = meta["cam2rgb"]
 
+        # Sort the shutter speeds from slowest (largest) to fastest (smallest).
+        # This way index 0 will always correspond to the brightest image.
+        unique_exposures = np.sort(np.unique(exposure))[::-1]
+        exposure_idx = np.zeros_like(exposure, dtype=np.int32)
+        for i, shutter in enumerate(unique_exposures):
+            # Assign index `i` to all images with shutter speed `shutter`
+            exposure_idx[exposure == shutter] = i
+        # Rescale to use relative shutter speeds, where 1. is the brightest.
+        # This way the NeRF output with exposure=1 will always be reasonable
+        exposure_values = exposure / unique_exposures[0]
+
         # Read and process one raw image to determine the fixed exposure value
         with open(image_filenames[0].as_posix(), "rb") as f:
             raw0 = rawpy.imread(f).raw_image
@@ -161,6 +172,8 @@ class ColmapRawImageDataParser(ColmapDataParser):
             "exposure_scale": torch.from_numpy(exposure_scale)[idx_tensor].unsqueeze(-1),
             "cam2rgb": torch.from_numpy(cam2rgb)[idx_tensor].reshape(-1, 9),
             "exposure": torch.tensor([exposure]),
+            "exposure_values": torch.from_numpy(exposure_values)[idx_tensor].unsqueeze(-1),
+            "exposure_idx": torch.from_numpy(exposure_idx)[idx_tensor].unsqueeze(-1),
         }
 
         cameras = Cameras(

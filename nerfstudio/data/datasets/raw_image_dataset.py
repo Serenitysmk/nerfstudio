@@ -30,7 +30,7 @@ class RawImageDataset(InputDataset):
             exposure_scale = self._dataparser_outputs.cameras.metadata["exposure_scale"][image_idx].numpy()  # type: ignore
 
             im = (raw - black_level) / (white_level - black_level)
-            im = im * exposure_scale
+            # im = im * exposure_scale
             # Demosaic Bayer images (preserves the measured RGGB values).
             im = raw_utils.bilinear_demosaic(im)
             if self.scale_factor != 1.0:

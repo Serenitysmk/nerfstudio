@@ -200,6 +200,12 @@ class RawNerfactoField(Field):
             implementation=implementation,
         )
 
+        # learned exposure scaling
+        if True:
+            max_num_exposures = 1000
+            self.exposure_scaling_offsets = nn.Embedding(max_num_exposures, 3)
+            self.exposure_scaling_offsets.weight.data.fill_(0)
+
     def get_density(self, ray_samples: RaySamples) -> Tuple[Tensor, Tensor]:
         """Computes and returns the densities."""
         if self.spatial_distortion is not None:
@@ -301,6 +307,17 @@ class RawNerfactoField(Field):
         )
         rgb_before_activation = self.mlp_head(h).view(*outputs_shape, -1).to(directions)
         rgb = torch.exp(rgb_before_activation - 5.0)
-        outputs.update({FieldHeadNames.RGB: rgb})
+        # Exposure scaling logic copied from RawNeRF:
+        has_exposure_info = "exposure_idx" in ray_samples.metadata
+        if has_exposure_info:
+            rgb = rgb * ray_samples.metadata["exposure_values"]
+            # Force scaling offset to always be zero when exposure_idx is 0.
+            # This constraint fixes a reference point for the scene's brightness.
+            exposure_idx = ray_samples.metadata["exposure_idx"][..., 0, :].squeeze(-1)
+            mask = exposure_idx > 0
+            # Scaling is parameterized as an offset from 1.
+            scaling = 1 + mask[..., None] * self.exposure_scaling_offsets(exposure_idx)
+            rgb = rgb * scaling[..., None, :]
 
+        outputs.update({FieldHeadNames.RGB: rgb})
         return outputs
