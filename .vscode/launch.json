@@ -162,10 +162,9 @@
         "--experiment-name",
         "nerflut3d",
         "--data",
-        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/multinerf-data/raw/rawnerf/scenes/stove/",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/debug_set/",
         "--output-dir",
-        //"/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/25_10_2023_tank_in_air_artificial/nerfstudio/train_debug",
-        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/multinerf-data/raw/rawnerf/results/stove/",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/debug_set/nerfstudio_results/",
         "--pipeline.model.predict-normals",
         "False",
         "--pipeline.model.camera-optimizer.mode",
@@ -175,7 +174,7 @@
         "--pipeline.datamanager.camera_res_scale_factor",
         "0.5",
         "--vis",
-        "tensorboard"
+        "viewer"
       ]
     },
     {
