@@ -740,7 +740,7 @@ method_configs["nerfacto-lut3d"] = TrainerConfig(
 )
 
 method_configs["nerfacto-lut3d-raw"] = TrainerConfig(
-    method_name="nerfacto-lut3d",
+    method_name="nerfacto-lut3d-raw",
     steps_per_eval_batch=500,
     steps_per_save=2000,
     max_num_iterations=30000,
@@ -777,7 +777,7 @@ method_configs["nerfacto-lut3d-raw"] = TrainerConfig(
 )
 
 method_configs["nerfacto-big-lut3d-raw"] = TrainerConfig(
-    method_name="nerfacto-lut3d",
+    method_name="nerfacto-lut3d-raw",
     steps_per_eval_batch=500,
     steps_per_save=2000,
     max_num_iterations=100000,

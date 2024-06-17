@@ -45,7 +45,7 @@ from nerfstudio.utils.rich_utils import CONSOLE
 class RawImageDataManagerConfig(DataManagerConfig):
     """A basic data manager for a ray-based model"""
 
-    _target: Type = field(default_factory=lambda: VanillaDataManager)
+    _target: Type = field(default_factory=lambda: RawImageDataManager)
     """Target class to instantiate."""
     dataparser: AnnotatedDataParserUnion = field(default_factory=BlenderDataParserConfig)
     """Specifies the dataparser used to unpack the data."""

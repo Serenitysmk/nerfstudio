@@ -242,6 +242,19 @@
         "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/25_10_2023_tank_in_air_artificial/colmap/sparse/",
         "--skip-colmap",
       ]
+    },
+    {
+      "name": "Python: debug viewer",
+      "type": "python",
+      "request": "launch",
+      "program": "nerfstudio/scripts/viewer/run_viewer.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {"CUDA_VISIBLE_DEVICES": "0"},
+      "args": [
+        "--load-config",
+        "/media/mshe/data/mshe/PhD/projects/omv_src/nerf-project/tank_experiments/GoPro_Images/debug_set/nerfstudio_results/nerflut3d-raw/nerfacto-lut3d-raw/2024-06-17_114538/config.yml"
+      ]
     }
   ]
 }

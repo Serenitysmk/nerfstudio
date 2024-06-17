@@ -72,7 +72,7 @@ class ColmapRawImageDataParser(ColmapDataParser):
                     p2=float(frame["p2"]) if "p2" in frame else 0.0,
                 )
             )
-            fname = Path(frame["file_path"]).with_suffix(".dng").name
+            fname = Path(frame["file_path"]).with_suffix(".DNG").name
             image_filenames.append(self.config.data / self.config.raw_path / fname)
             poses.append(frame["transform_matrix"])
             if "mask_path" in frame:
@@ -148,7 +148,7 @@ class ColmapRawImageDataParser(ColmapDataParser):
 
         # Sort the shutter speeds from slowest (largest) to fastest (smallest).
         # This way index 0 will always correspond to the brightest image.
-        unique_exposures = np.sort(np.unique(exposure))[::-1]
+        unique_exposures = np.sort(np.unique(exposure))
         exposure_idx = np.zeros_like(exposure, dtype=np.int32)
         for i, shutter in enumerate(unique_exposures):
             # Assign index `i` to all images with shutter speed `shutter`

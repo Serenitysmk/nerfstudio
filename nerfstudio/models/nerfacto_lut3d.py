@@ -136,6 +136,9 @@ class NerfactoLUT3DModelConfig(ModelConfig):
     """Average initial density output from MLP. """
     camera_optimizer: CameraOptimizerConfig = field(default_factory=lambda: CameraOptimizerConfig(mode="SO3xR3"))
     """Config of the camera optimizer to use"""
+    default_white_balance: Tuple[float, ...] = (0.453097, 1, 0.746356)
+    """Default white balance coefficient for raw image post-processing"""
+    default_color_matrix2: Tuple[float, ...] = (1.0344, -0.421, -0.062, -0.2315, 1.0625, 0.1948, 0.0093, 0.1058, 0.5541)
 
 
 class NerfactoLUT3DModel(Model):
@@ -271,6 +274,18 @@ class NerfactoLUT3DModel(Model):
         self.lpips = LearnedPerceptualImagePatchSimilarity(normalize=True)
         self.step = 0
 
+        # Parameters for raw data post-processing
+        default_wb = torch.tensor(self.config.default_white_balance)
+        cam2camwb = torch.diag(1.0 / default_wb)
+        # ColorMatrix2 converts from XYZ color space to "reference illuminant" (white
+        # balanced) camera space.
+        xyz2camwb = torch.tensor(self.config.default_color_matrix2).reshape(3, 3)
+        rgb2cam2b = xyz2camwb @ torch.from_numpy(raw_utils._RGB2XYZ).to(torch.float32)
+        # We normalize the rows of the full color correction matrix, as is done in
+        # https://github.com/AbdoKamel/simple-camera-pipeline.
+        rgb2cam2b = rgb2cam2b / rgb2cam2b.sum(dim=-1, keepdim=True)
+        self.register_buffer("default_cam2rgb", torch.linalg.inv(rgb2cam2b) @ cam2camwb)
+
         self.cached_cam2rgb = None
         self.cached_exposure = None
 
@@ -357,7 +372,7 @@ class NerfactoLUT3DModel(Model):
                 self.cached_exposure = ray_bundle.metadata["exposure"][0].cpu().float()
 
         outputs = {
-            "rgb": rgb,
+            "rgb": rgb_train,
             "rgb_eval": rgb,
             "accumulation": accumulation,
             "depth": depth,
@@ -525,9 +540,12 @@ class NerfactoLUT3DModel(Model):
         for output_name, outputs_list in outputs_lists.items():
             outputs[output_name] = torch.cat(outputs_list).view(image_height, image_width, -1)  # type: ignore
         # Additionally post process raw rgb image into linear sRGB image
+
         if self.cached_cam2rgb is not None and self.cached_exposure is not None:
-            rgb_eval = raw_utils.postprocess_raw(
-                outputs["rgb_eval"].cpu().numpy(), self.cached_cam2rgb, self.cached_exposure
-            )
+            rgb_eval = raw_utils.postprocess_raw(outputs["rgb_eval"].cpu().numpy(), self.cached_cam2rgb)
+            outputs["rgb_eval"] = torch.from_numpy(rgb_eval).to(outputs["rgb"])
+        else:
+            # No cached cam2rgb transform and exposure information, use default one.
+            rgb_eval = raw_utils.postprocess_raw(outputs["rgb_eval"].cpu().numpy(), self.default_cam2rgb.cpu().numpy())
             outputs["rgb_eval"] = torch.from_numpy(rgb_eval).to(outputs["rgb"])
         return outputs
