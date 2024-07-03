@@ -14,6 +14,8 @@ from nerfstudio.utils import raw_utils
 
 class RawImageDataset(InputDataset):
     def __init__(self, dataparser_outputs: DataparserOutputs, scale_factor: float = 1.0):
+        # TODO: This is a somewhat ugly and bugy implementation because official nerfstudio apply scale twice in dataparser.
+        # We have to work around this by setting the constructor as 1.0 and save the scale factor afterwards.
         super().__init__(dataparser_outputs, 1.0)
         self.scale_factor = scale_factor
 
